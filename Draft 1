@@ -1,0 +1,275 @@
+function love.load()
+
+    love.graphics.setDefaultFilter("nearest", "nearest")
+
+    scale = 3
+
+    background = love.graphics.newImage("background.png")
+
+    clawOpen = love.graphics.newImage("claw_open.png")
+    clawClosed = love.graphics.newImage("claw_closed.png")
+
+    windowWidth = background:getWidth() * scale
+    windowHeight = background:getHeight() * scale
+
+    love.window.setMode(windowWidth, windowHeight)
+
+    gameState = "title"
+
+    score = 0
+    goal = 3
+
+    timer = 45
+
+    claw = {
+        x = 128,
+        y = 18,
+        speed = 180,
+        dropSpeed = 220,
+        state = "move",
+        holding = false
+    }
+
+    prizes = {
+        {x = 95, y = 125, grabbed = false},
+        {x = 130, y = 130, grabbed = false},
+        {x = 165, y = 125, grabbed = false},
+        {x = 110, y = 160, grabbed = false},
+        {x = 150, y = 160, grabbed = false},
+    }
+
+end
+
+function restartGame()
+
+    score = 0
+    timer = 45
+
+    claw.x = 128
+    claw.y = 18
+    claw.state = "move"
+    claw.holding = false
+
+    for i, prize in ipairs(prizes) do
+        prize.grabbed = false
+    end
+
+    gameState = "playing"
+
+end
+
+function love.update(dt)
+
+    if gameState ~= "playing" then
+        return
+    end
+
+    timer = timer - dt
+
+    if timer <= 0 then
+        gameState = "lose"
+    end
+
+    -- Move claw left/right
+    if claw.state == "move" then
+
+        if love.keyboard.isDown("left") then
+            claw.x = claw.x - claw.speed * dt
+        end
+
+        if love.keyboard.isDown("right") then
+            claw.x = claw.x + claw.speed * dt
+        end
+
+        if claw.x < 70 then
+            claw.x = 70
+        end
+
+        if claw.x > 185 then
+            claw.x = 185
+        end
+    end
+
+    -- Drop claw
+    if claw.state == "drop" then
+
+        claw.y = claw.y + claw.dropSpeed * dt
+
+        for i, prize in ipairs(prizes) do
+
+            if prize.grabbed == false and claw.holding == false then
+
+                local distance = math.sqrt(
+                    (claw.x - prize.x)^2 +
+                    (claw.y - prize.y)^2
+                )
+
+                if distance < 18 then
+
+                    prize.grabbed = true
+                    claw.holding = true
+                    claw.state = "lift"
+
+                end
+            end
+        end
+
+        if claw.y >= 170 then
+            claw.state = "lift"
+        end
+    end
+
+    -- Lift claw back up
+    if claw.state == "lift" then
+
+        claw.y = claw.y - claw.dropSpeed * dt
+
+        if claw.y <= 18 then
+
+            claw.y = 18
+
+            if claw.holding == true then
+
+                score = score + 1
+                claw.holding = false
+
+                if score >= goal then
+                    gameState = "win"
+                end
+            end
+
+            claw.state = "move"
+        end
+    end
+end
+
+function love.keypressed(key)
+
+    if gameState == "title" then
+
+        if key == "space" then
+            restartGame()
+        end
+    end
+
+    if gameState == "playing" then
+
+        if key == "space" and claw.state == "move" then
+            claw.state = "drop"
+        end
+    end
+
+    if key == "r" then
+        restartGame()
+    end
+end
+
+function love.draw()
+
+    -- Draw background
+    love.graphics.draw(background, 0, 0, 0, scale, scale)
+
+    drawPrizes()
+    drawClaw()
+    drawUI()
+
+    if gameState == "title" then
+        drawMessage("MINI CLAW MACHINE", "PRESS SPACE")
+    end
+
+    if gameState == "win" then
+        drawMessage("YOU WIN!", "PRESS R")
+    end
+
+    if gameState == "lose" then
+        drawMessage("YOU LOSE!", "PRESS R")
+    end
+end
+
+function drawClaw()
+
+    local clawImage
+
+    if claw.holding == true then
+        clawImage = clawClosed
+    else
+        clawImage = clawOpen
+    end
+
+    love.graphics.draw(
+        clawImage,
+        claw.x * scale,
+        claw.y * scale,
+        0,
+        scale,
+        scale
+    )
+end
+
+function drawPrizes()
+
+    for i, prize in ipairs(prizes) do
+
+        if prize.grabbed == false then
+
+            love.graphics.setColor(1, 0.2, 0.8)
+
+            love.graphics.circle(
+                "fill",
+                prize.x * scale,
+                prize.y * scale,
+                8 * scale
+            )
+        end
+    end
+
+    love.graphics.setColor(1,1,1)
+end
+
+function drawUI()
+
+    love.graphics.setColor(1,1,1)
+
+    love.graphics.print(
+        "Score: "..score.."/"..goal,
+        15,
+        10
+    )
+
+    love.graphics.print(
+        "Time: "..math.ceil(timer),
+        windowWidth - 90,
+        10
+    )
+end
+
+function drawMessage(big, small)
+
+    love.graphics.setColor(0,0,0,0.8)
+
+    love.graphics.rectangle(
+        "fill",
+        windowWidth/2 - 140,
+        windowHeight/2 - 60,
+        280,
+        120
+    )
+
+    love.graphics.setColor(1,1,1)
+
+    love.graphics.printf(
+        big,
+        0,
+        windowHeight/2 - 25,
+        windowWidth,
+        "center"
+    )
+
+    love.graphics.printf(
+        small,
+        0,
+        windowHeight/2 + 15,
+        windowWidth,
+        "center"
+    )
+end
